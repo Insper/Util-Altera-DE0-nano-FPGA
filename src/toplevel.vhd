@@ -55,6 +55,8 @@ ARCHITECTURE logic OF sdramTeste IS
         );
     end component sdram;
 
+    signal RST     : STD_LOGIC := '1';    	 
+	 
     signal sdram_s1_address       :  std_logic_vector(23 downto 0); 
     signal sdram_s1_byteenable_n  :  std_logic_vector(1  downto 0) ; 
     signal sdram_s1_chipselect    :  std_logic                    ; 
@@ -67,12 +69,14 @@ ARCHITECTURE logic OF sdramTeste IS
 
     signal address                :  integer range 0 to 4095 := 50;
     signal dataWrite              :  unsigned(7 downto 0)    := x"55";
+	 
+    signal delayCounter           :  integer range 0 to 50000000 := 0;
 
-    type   STATE_TYPE IS (s0, sW1, sW2, sR0, sR1, sR2, sR3);
+
+    type   STATE_TYPE IS (s0, sW1, sW2, sR0, sR1, sR2, sR3, sDelay);
     signal state   : STATE_TYPE := s0;
 
     
-    signal RST     : STD_LOGIC := '1';    
 
 begin
 
@@ -101,9 +105,12 @@ begin
         );
 
 
-    -- Botao evento (incrementa contador para escrita)
-    -- KEY 1 : incrementa e salva contador na memoria
-    -- KEY 0 : decrementa e lê valor da memoria
+    -- Fluxo :
+	 -- 	1. Grava valor na SDRAM 
+	 -- 	2. Le da SRDAM e mostra nos LEDs
+	 -- 	3. Incrementa endereco SDRAM + modifica valor salvo
+	 -- 
+
     process(CLK_50)
     begin
         if(rising_edge(CLK_50)) then
@@ -113,74 +120,65 @@ begin
                 -- Default state		
                 -----------------------
                 when s0 =>
-                    sdram_s1_chipselect <= '0';
                     sdram_s1_write_n    <= '1';  
                     sdram_s1_read_n     <= '1';  
+                    state               <= sW1;
+							
+				    -----------------------
+                -- Write
+                -----------------------		
+					 when sW1 =>
+						sdram_s1_write_n    <= '0';  
+						state 				  <= SW2;
+						
+					 when sW2 =>
+						sdram_s1_write_n    <= '1';  
+						state 				  <= SR1;
+						
+				   -----------------------
+               -- Read
+               -----------------------								
+					 when sR1 =>
+						sdram_s1_read_n     <= '0';  
+						state 				  <= SR2;
+						
+					
+					when sR2 =>
+						sdram_s1_read_n     <= '1';  
+						state 				  <= SR3;						
 
-                    if(key(1) = '0') then -- save
-                        sdram_s1_chipselect <= '1';
-                        address             <= address;
-                        state               <= sW1;
-                    else
-                        state               <= s0;
-                    end if;
+					 when sR3 =>
+						if(sdram_s1_readdatavalid = '1') then
+							LED 					<= sdram_s1_readdata(7 downto 0);
+							state	 				<= sDelay;
+						else
+							state	 				<= sR3;					
+						end if;
 
-                    if(key(0) = '0') then -- read
-                        sdram_s1_chipselect <= '1';
-                        address             <= address - 1;
-                        state               <= sR1;
-                    else
-                        state               <= s0;
-                    end if;
+				   -----------------------
+               -- Delay 1s + incremento
+               -----------------------						
+					when sDelay =>
+						if(delayCounter <= 50000000) then
+							delayCounter 	<= delayCounter + 1;
+							state	 			<= sDelay;
+						else
+							address				<= address + 1;
+							dataWrite			<= dataWrite +  x"01"; 
+							delayCounter 		<= 0;
+							state 				<= s0;
+						end if;
 
-                -----------------------
-                -- Write states
-                -----------------------
-                when sW1 =>
-                    --sdram_s1_address    <= std_logic_vector(to_unsigned(address,24)); 
-                    if(key(1) = '1') then -- released
-                        sdram_s1_write_n <= '0';
-                        state            <= sW2;
-                    else
-                        state            <= sW1;
-                    end if;
-
-                when sW2 =>
-                    sdram_s1_write_n    <= '1';
-                    address             <= address + 1;
-                    state               <= s0;
-                
-                ----------------------
-                -- Read states
-                ----------------------
-                when sR1 =>
-                    --sdram_s1_address    <= std_logic_vector(to_unsigned(address,24)); 
-                    if(key(0) = '1') then -- released
-                        sdram_s1_read_n <= '0';
-                        state           <= sR2;
-                    else
-                        state           <= sR1;
-                    end if;
-
-                when sR2 =>
-
-                    if( sdram_s1_readdatavalid = '1') then
-                        sdram_s1_read_n <= '1';
-                        LED             <= sdram_s1_readdata(7 downto 0);
-                        state           <= s0;
-                    else
-                        state           <= sR2;
-                    end if;
-
-                when others =>
-                    state <= s0;
-
+					when others =>
+						state <= s0;
+						
             end case;
 
         end if; 
     end process;
 
-                sdram_s1_address    <= std_logic_vector(to_unsigned(address,24)); 
+  sdram_s1_chipselect 					<= '1';
+  sdram_s1_address    					<= std_logic_vector(to_unsigned(address,24)); 
   sdram_s1_writedata(7 downto 0)    <= std_logic_vector(dataWrite);
   sdram_s1_writedata(15 downto 8)   <= (others => '0');
   sdram_s1_byteenable_n 				<= (others => '0');
