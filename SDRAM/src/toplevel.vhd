@@ -78,7 +78,7 @@ ARCHITECTURE logic OF sdramTeste IS
     signal address                : integer range 0 to 65536 := addressOffset;
     signal dataWrite              : unsigned(7 downto 0)    := (others => '0');
 	 
-    signal delayCounter           : integer range 0 to 50000000 := 0;
+    signal delayCounter           : integer range 0 to 100000000 := 0;
 
 	 signal clk100 					 : std_logic;
 
@@ -130,11 +130,11 @@ begin
     begin
         if(rising_edge(clk100)) then
 			  if((rst = '0') OR (altpll_locked ='0') ) then 
-					state 	 <= s0;
-					address 	 <= (addressOffset + addressMax);
-					dataWrite <= (others => '0');
-					sdram_s1_chipselect <= '0';
-					LED    	 <= x"55";
+					state 	 				<= s0;
+					address 	 				<= addressOffset;
+					dataWrite 				<= (others => '0');
+					sdram_s1_chipselect 	<= '0';
+					LED    	 				<= x"55";
 			  else
 					case state is
 
@@ -142,19 +142,16 @@ begin
 						 -- Default state		
 						 -----------------------
 						 when s0 =>
-							  sdram_s1_write_n    <= '1';  
-							  sdram_s1_read_n     <= '1'; 
+	
 							  sdram_s1_chipselect <= '1';
 							  
 							  if (address <= (addressOffset + addressMax)) then
 									state  <= sW1;
 							  else
-									sdram_s1_chipselect <= '0';
 									state  				  <= sDelay;
 									address 				  <= addressOffset;
 							  end if;
-							  
-								
+							  								
 						 -----------------------
 						 -- Write
 						 -----------------------		
@@ -164,7 +161,7 @@ begin
 							
 						 when sW2 =>
 							sdram_s1_write_n    <= '1'; 
-							address				  <= address + 2;
+							address				  <= address + 1;
 							dataWrite			  <= dataWrite +  x"01"; 
 							state 				  <= s0;
 							
@@ -180,23 +177,21 @@ begin
 								LED(7 downto 0) 	<= sdram_s1_readdata(7 downto 0);
 								sdram_s1_read_n   <= '1';  
 								state	 				<= sDelay;
+								sdram_s1_chipselect <= '0';
 							else
 								state	 				<= sR2;					
 							end if;
 
-						-----------------------
-						-- Delay 1s + incremento leitura
-						-----------------------						
+						-- Delay na leitura (para ser visivel)
 						when sDelay =>
-							  sdram_s1_chipselect <= '1';
-
-							if(delayCounter <= 50000000) then
+							sdram_s1_chipselect <= '1';
+							if(delayCounter <= 250000000) then
 								delayCounter 	<= delayCounter + 1;
 								state	 			<= sDelay;
 							else
 								if(address <= (addressOffset + addressMax)) then
-										address					<= address + 2;
-										state 					<= sR1;
+										address		<= address + 1;
+										state 		<= sR1;
 								else
 										address		<= addressOffset;
 										state 		<= s0;
