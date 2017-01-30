@@ -74,7 +74,7 @@ ARCHITECTURE logic OF sdramTeste IS
     signal sdram_s1_waitrequest     :  std_logic                    ; 
 
 	constant addressOffset		    : integer := 0;
-	constant addressTestSize        : integer := 17;
+	constant addressTestSize        : integer := 255;
     signal   address                : integer range 0 to 65536 := addressOffset;
 
     signal  dataWrite               : unsigned(7 downto 0) := (others => '0');
@@ -137,7 +137,8 @@ begin
 			if(rising_edge(clk100)) then
 				case state is
 					when sW1 =>
-                        LED   <= std_logic_vector(dataWrite);
+                    	sdram_s1_chipselect 	<= '1';
+                        LED                     <= std_logic_vector(dataWrite);
                         if(delayCounter < 500000) then
                             delayCounter     <= delayCounter + 1;
                             sdram_s1_write_n <= '1';
